@@ -24,7 +24,7 @@
 
 ## M1 — 场景包（1–2 周）
 
-- [ ] **T06 — 场景包格式**：把 Morde 的 `scene.yaml + playbook.md + rules.md + memory/ + hooks/`
+- [x] **T06 — 场景包格式**：把 Morde 的 `scene.yaml + playbook.md + rules.md + memory/ + hooks/`
   映射到 OpenMausBot 的 team file（一份 Markdown + YAML frontmatter），写映射文档。
   验收：一个场景包能导入，Bot、频道、playbook、连接清单都建出来了。
 - [ ] **T07 — 导入默认全关**：导入时连接默认关、routine 暂停、技能关、密钥与电脑选择不携带，
