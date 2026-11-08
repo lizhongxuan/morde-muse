@@ -31,6 +31,28 @@ export interface AppTriggerSkipped {
   tooMany: number;
 }
 
+/** Morde hook, four elements. "When" is the trigger itself (prompt + event +
+ * runOn); the other three live here. Optional: a trigger without it is a
+ * plain upstream trigger and behaves exactly as before. */
+export interface MordeHook {
+  /** What the run must verify before it acts. */
+  verify?: string;
+  /** Who approves a decision this hook raises (a person, not a bot). */
+  approver?: string;
+  /** Bot memory topic the person's decision is written back to, e.g. `decisions.md`. */
+  decisionLog?: string;
+}
+
+export function cleanMordeHook(input: MordeHook | undefined | null): MordeHook | undefined {
+  if (!input) return undefined;
+  const kept: MordeHook = {};
+  for (const key of ["verify", "approver", "decisionLog"] as const) {
+    const value = input[key]?.trim();
+    if (value) kept[key] = value.slice(0, 500);
+  }
+  return Object.keys(kept).length ? kept : undefined;
+}
+
 export interface AppTrigger {
   id: string;
   name: string;
@@ -50,6 +72,8 @@ export interface AppTrigger {
   /** Composio trigger config, with a Gmail filter already folded into `query`. */
   config: Record<string, unknown>;
   filter?: AppTriggerFilter;
+  /** Morde hook four elements; absent on a plain upstream trigger. */
+  morde?: MordeHook;
   /** The connected-apps service's copy. `pending` is retried on its own until it holds. */
   remote: { triggerId?: string; state: "active" | "pending" | "error"; error?: string; syncedAt?: number };
   problem?: AppTriggerProblem;
@@ -120,9 +144,10 @@ export interface AppTriggerDefinition {
   filter?: AppTriggerFilter;
   config?: Record<string, unknown>;
   runOn?: RoutineRunOn;
+  morde?: MordeHook;
 }
 
-export type AppTriggerChange = Partial<Pick<AppTriggerDefinition, "name" | "instructions" | "filter" | "config" | "runOn">>;
+export type AppTriggerChange = Partial<Pick<AppTriggerDefinition, "name" | "instructions" | "filter" | "config" | "runOn" | "morde">>;
 
 export type AppTriggerRequestOperation =
   | { action: "create"; trigger: AppTriggerDefinition; forBot?: { botId: string; name: string } }
@@ -142,7 +167,7 @@ export interface AppTriggerRequestCardData {
     name: string;
     /** The automation's revision right after the change; Undo refuses once it moved. */
     appliedUpdatedAt?: number;
-    before?: { name: string; prompt: string; runOn: RoutineRunOn; enabled: boolean; filter?: AppTriggerFilter; config: Record<string, unknown> };
+    before?: { name: string; prompt: string; runOn: RoutineRunOn; enabled: boolean; filter?: AppTriggerFilter; config: Record<string, unknown>; morde?: MordeHook };
   };
 }
 

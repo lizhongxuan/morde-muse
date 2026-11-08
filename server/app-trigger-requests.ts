@@ -37,6 +37,11 @@ const filterSchema = z.object({
   label: z.string().trim().max(200).optional(),
   text: z.string().trim().max(200).optional(),
 }).strict();
+const mordeSchema = z.object({
+  verify: z.string().trim().max(500).optional(),
+  approver: z.string().trim().max(200).optional(),
+  decisionLog: z.string().trim().max(200).optional(),
+}).strict();
 const definitionSchema = z.object({
   name: z.string().trim().min(1, "An automation needs a name").max(80),
   instructions: z.string().trim().max(20_000).default(""),
@@ -46,8 +51,9 @@ const definitionSchema = z.object({
   filter: filterSchema.optional(),
   config: z.record(z.string(), z.unknown()).optional(),
   runOn: z.enum(["maus", "cloud"]).optional(),
+  morde: mordeSchema.optional(),
 }).strict();
-const changesSchema = definitionSchema.pick({ name: true, instructions: true, filter: true, config: true, runOn: true }).partial().strict()
+const changesSchema = definitionSchema.pick({ name: true, instructions: true, filter: true, config: true, runOn: true, morde: true }).partial().strict()
   .refine((changes) => Object.keys(changes).length > 0, "The update action needs at least one field in changes");
 const idSchema = z.string().trim().min(1).max(200);
 const targetSchema = z.object({ botId: z.string(), name: z.string() }).optional();
@@ -162,7 +168,7 @@ export class AppTriggerRequestService {
         name: redactSecretsInText(subject.name),
         ...(after && operation.action !== "run_now" ? { appliedUpdatedAt: after.updatedAt } : {}),
         ...(before && (operation.action === "update" || operation.action === "delete")
-          ? { before: { name: before.name, prompt: before.prompt, runOn: before.runOn, enabled: before.enabled, config: before.config, ...(before.filter ? { filter: before.filter } : {}) } }
+          ? { before: { name: before.name, prompt: before.prompt, runOn: before.runOn, enabled: before.enabled, config: before.config, ...(before.filter ? { filter: before.filter } : {}), ...(before.morde ? { morde: before.morde } : {}) } }
           : {}),
       },
     };
@@ -213,7 +219,7 @@ export class AppTriggerRequestService {
           const before = payload.undo?.before;
           if (!mine || mine.updatedAt !== payload.undo?.appliedUpdatedAt) return stale;
           const patch = operation.action === "update"
-            ? before ? { name: before.name, prompt: before.prompt, runOn: before.runOn, enabled: before.enabled, filter: before.filter ?? null, restoreConfig: before.config } : undefined
+            ? before ? { name: before.name, prompt: before.prompt, runOn: before.runOn, enabled: before.enabled, filter: before.filter ?? null, restoreConfig: before.config, morde: before.morde ?? null } : undefined
             : { enabled: operation.action === "pause" };
           if (!patch || !await triggers.update(triggerId, patch)) return stale;
           break;

@@ -624,6 +624,27 @@ describe("a run waiting on an approval nobody is there to give", () => {
     expect(h.manager.listRuns()[0]).toMatchObject({ status: "running" });
     expect(h.failed).toEqual([]);
   });
+
+  it("writes a Morde hook run's answered approval back through recordDecision, and nothing on a timeout", async () => {
+    const h = harness();
+    const recorded: Array<{ runId: string; decision: string }> = [];
+    h.options.recordDecision = (run, decision) => recorded.push({ runId: run.id, decision });
+    const morde = { verify: "Check the quote against the last one", approver: "采购负责人", decisionLog: "decisions.md" };
+    h.manager.enqueueWebhook({ webhookId: "hook-1", webhookName: "供应商新报价单", prompt: "Check the new quote.", botId: "maus-1", runOn: "maus", deliveryId: "msg_1", receivedAt: Date.now(), eventSource: "app", morde });
+    await h.manager.tick();
+    const run = h.manager.listRuns()[0]!;
+    expect(run).toMatchObject({ status: "running", threadId: "thread-1", morde });
+    h.manager.handleRuntimeEvent(opened("thread-1", "r1", "COMPOSIO_MULTI_EXECUTE_TOOL"));
+    expect(h.manager.listRuns()[0]).toMatchObject({ status: "waiting" });
+    h.manager.handleRuntimeEvent(resolved("thread-1", "r1", "user", "allow"));
+    expect(recorded).toEqual([{ runId: run.id, decision: expect.stringContaining("批准：to use COMPOSIO_MULTI_EXECUTE_TOOL") }]);
+
+    h.manager.enqueueWebhook({ webhookId: "hook-1", webhookName: "供应商新报价单", prompt: "Check the new quote.", botId: "maus-1", runOn: "maus", deliveryId: "msg_2", receivedAt: Date.now(), eventSource: "app", morde });
+    await h.manager.tick();
+    h.manager.handleRuntimeEvent(opened("thread-2", "r2", "COMPOSIO_MULTI_EXECUTE_TOOL"));
+    h.manager.handleRuntimeEvent(resolved("thread-2", "r2", "timeout"));
+    expect(recorded).toHaveLength(1);
+  });
 });
 
 it("names a new routine thread with the local dispatch date and time", async () => {

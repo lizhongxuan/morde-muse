@@ -128,6 +128,7 @@ export function createAppTriggerHost(deps: AppTriggerHostDeps) {
           ...(typeof body.account === "string" ? { account: body.account } : {}),
           ...(body.filter && typeof body.filter === "object" ? { filter: body.filter as never } : {}),
           ...(body.config && typeof body.config === "object" ? { config: body.config as Record<string, unknown> } : {}),
+          ...(body.morde && typeof body.morde === "object" ? { morde: body.morde as never } : {}),
           ...(body.runOn === "cloud" ? { runOn: "cloud" as const } : {}),
         });
         return json(res, 201, { trigger });
@@ -147,6 +148,7 @@ export function createAppTriggerHost(deps: AppTriggerHostDeps) {
           ...(body.runOn === "maus" || body.runOn === "cloud" ? { runOn: body.runOn } : {}),
           ...(body.filter === null || (body.filter && typeof body.filter === "object") ? { filter: body.filter as never } : {}),
           ...(body.config && typeof body.config === "object" ? { config: body.config as Record<string, unknown> } : {}),
+          ...(body.morde === null || (body.morde && typeof body.morde === "object") ? { morde: body.morde as never } : {}),
           ...(typeof body.enabled === "boolean" ? { enabled: body.enabled } : {}),
         };
         const trigger = await manager.update(id, patch);

@@ -15,6 +15,13 @@ export function routineRunCard(run: RoutineRun): NonNullable<Message["routineRun
     scheduledFor: run.scheduledFor,
     status: run.status,
   };
+  if (run.morde) {
+    card.morde = {
+      ...(run.morde.verify ? { verify: redactSecretsInText(run.morde.verify) } : {}),
+      ...(run.morde.approver ? { approver: redactSecretsInText(run.morde.approver) } : {}),
+      ...(run.morde.decisionLog ? { decisionLog: redactSecretsInText(run.morde.decisionLog) } : {}),
+    };
+  }
   if (run.goalStatus) card.goalStatus = run.goalStatus;
   if (run.deferredAt != null && run.status === "queued") card.deferredAt = run.deferredAt;
   if (run.threadId) card.executionThreadId = run.threadId;
@@ -49,5 +56,12 @@ export function routineRunFallbackText(card: NonNullable<Message["routineRun"]>,
   const key = stateKey(card);
   const state = key ? serverLine(language, key) : card.status;
   const detail = card.summary ?? card.error;
-  return `${serverLine(language, "server.runs.card.line", { name: card.routineName, state })}${detail ? `\n\n${detail}` : ""}`;
+  const text = `${serverLine(language, "server.runs.card.line", { name: card.routineName, state })}${detail ? `\n\n${detail}` : ""}`;
+  if (!card.morde) return text;
+  const hook = [
+    ...(card.morde.verify ? [`验证：${card.morde.verify}`] : []),
+    ...(card.morde.approver ? [`批准人：${card.morde.approver}`] : []),
+    ...(card.morde.decisionLog ? [`决定记在：${card.morde.decisionLog}`] : []),
+  ];
+  return hook.length ? `${text}\n\n${hook.join("\n")}` : text;
 }

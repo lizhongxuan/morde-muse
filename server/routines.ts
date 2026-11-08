@@ -9,6 +9,7 @@ import { redactSecretsInText } from "./redact.ts";
 import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
+import type { MordeHook } from "../shared/app-triggers.ts";
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
 import type { ModelSelection } from "../shared/wire.ts";
 import { intervalAllowsOccurrence, intervalHasRestrictions, isSameLocalDay, latestIntervalOccurrence } from "./routine-intervals.ts";
@@ -27,6 +28,7 @@ import {
   dispatchRefusal, engineFacts, loadOwnerNotices, nextScheduledRun, recoverRun, requeueOnce, weekRuns, type RoutineAlert, type RoutineFailureFacts, type RoutineOwnerNotice,
 } from "./routine-recovery.ts";
 import { activeMs, askOf, settleAsk, waitingFor, type RoutineRunAsk } from "./routine-waits.ts";
+import { mordeDecisionLine } from "./morde-hook.ts";
 import { failsLikeLastOutcome, outcomesNewestFirst } from "./routine-outcomes.ts";
 import { EVENT_RETRY_WINDOW_MS, loadEventReceipts, MAX_EVENT_RECEIPTS, type EventRunReceipt } from "./routine-event-receipts.ts";
 import { attachmentPathsOf, attachmentsMalformed, cloneAttachments } from "./routine-attachments.ts";
@@ -122,6 +124,8 @@ export interface RoutineRun extends RoutineLineCodes {
   eventSource?: "app" | "wait";
   webhookId?: string;
   deliveryId?: string;
+  /** Morde hook four elements, when an app event started this run. */
+  morde?: MordeHook;
   sourceThreadId?: string;
   resultsThreadId?: string;
   threadId?: string;
@@ -259,6 +263,8 @@ export interface RoutineManagerOptions {
   onRunChanged?: (run: RoutineRun) => void;
   onRunFailed?: (run: RoutineRun, alert?: RoutineAlert | null) => void;
   onRunDeferred?: (run: RoutineRun, alert?: RoutineAlert) => void;
+  /** A Morde hook run's ask was answered by the person: write the decision back to the hook's decision log. */
+  recordDecision?: (run: RoutineRun, decision: string) => void;
   /** A run a restart cut off, before it starts again or fails: its old turn's work must not resume as well. */
   onRunCut?: (run: RoutineRun) => void;
   hasPendingDelegations?: (threadId: string) => boolean; /** Why a run that ended well in this thread must say a hand-off was refused, once; null when none was. */ refusedHandoff?: (threadId: string) => string | null;
@@ -752,6 +758,7 @@ export class RoutineManager {
   enqueueWebhook(input: {
     webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number;
     eventSource?: "app" | "wait";
+    morde?: MordeHook;
     /** Where the run reports, instead of the event's own results chat. */
     resultsThreadId?: string;
   }): { id: string } {
@@ -765,6 +772,7 @@ export class RoutineManager {
       id: randomUUID(), routineId: input.webhookId, routineName: input.webhookName, prompt: input.prompt, target: "bot",
       botId: input.botId, runOn: input.runOn, scheduledFor: input.receivedAt, status: "queued", manual: false,
       triggerSource: "webhook", webhookId: input.webhookId, deliveryId: input.deliveryId, attachments: [], createdAt: this.now(),
+      ...(input.morde ? { morde: input.morde } : {}),
       resultsThreadId: input.resultsThreadId ?? this.options.eventResultsThread?.(input), ...(input.eventSource ? { eventSource: input.eventSource } : {}),
     };
     this.commitEvent(run, input.deliveryId, () => { this.runs.push(run); });
@@ -1257,10 +1265,14 @@ export class RoutineManager {
       run.asked ??= askOf(event, this.now());
       this.wait(run, waitingFor(run.asked));
     } else if (event.type === "request.resolved") {
+      const asked = run.asked;
       const unanswered = settleAsk(run, event, this.now());
       if (unanswered) {
         void this.stopRun(run, unanswered, "stopped");
         return cloneRun(run);
+      }
+      if (asked && run.morde?.decisionLog && event.source === "user") {
+        this.options.recordDecision?.(run, mordeDecisionLine(asked, event.behavior, this.now()));
       }
       run.status = "running";
       run.attention = undefined;

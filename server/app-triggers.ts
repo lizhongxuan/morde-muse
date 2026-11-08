@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import {
   APP_FILTER_MAX,
+  cleanMordeHook,
   GMAIL_APP,
   gmailSearchQuery,
   type AppEventAttempt,
@@ -16,12 +17,14 @@ import {
   type AppTriggerFilter,
   type AppTriggerService,
   type AppTriggersSnapshot,
+  type MordeHook,
 } from "../shared/app-triggers.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
 import { BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory, type BrokerTriggerType } from "./app-trigger-broker.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { DATA_DIR } from "./config.ts";
+import { mordeHookBlock } from "./morde-hook.ts";
 import type { RoutineRunOn } from "./routines.ts";
 
 export const DEFAULT_MAX_PENDING_RUNS = 3;
@@ -59,7 +62,7 @@ export interface AppTriggerManagerOptions {
   connectedApps: () => Promise<ConnectedApps>;
   botState: (botId: string) => "ready" | "busy" | "missing";
   runs: {
-    enqueue(input: { webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number; eventSource: "app" }): { id: string };
+    enqueue(input: { webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number; eventSource: "app"; morde?: MordeHook }): { id: string };
     merge(triggerId: string, eventId: string, merge: (prompt: string) => string | null): { id: string } | null;
     receipt(triggerId: string, eventId: string): { id: string } | null;
     pending(triggerId: string): number;
@@ -94,6 +97,11 @@ const storedSchema = z.object({
   accountLabel: z.string().optional(),
   config: z.record(z.string(), z.unknown()),
   filter: filterSchema.optional().catch(undefined),
+  morde: z.object({
+    verify: z.string().max(500).optional(),
+    approver: z.string().max(200).optional(),
+    decisionLog: z.string().max(200).optional(),
+  }).optional().catch(undefined),
   remote: z.object({ triggerId: z.string().optional(), state: z.enum(["active", "pending", "error"]), error: z.string().optional(), syncedAt: z.number().optional() }),
   problem: z.union([
     z.object({ kind: z.literal("reconnect"), at: z.number() }),
@@ -142,6 +150,7 @@ export interface AppTriggerInput {
   runOn?: RoutineRunOn;
   enabled?: boolean;
   sourceThreadId?: string;
+  morde?: MordeHook;
   /** Another server's automation, made here under its own id. */
   id?: string;
 }
@@ -153,6 +162,8 @@ export interface AppTriggerPatch {
   filter?: AppTriggerFilter | null;
   config?: Record<string, unknown>;
   enabled?: boolean;
+  /** Null clears the hook. */
+  morde?: MordeHook | null;
   /** Undo: the config exactly as it was saved, filter already folded in. */
   restoreConfig?: Record<string, unknown>;
 }
@@ -188,6 +199,10 @@ function triggerConfig(type: BrokerTriggerType, config: Record<string, unknown>,
 function publicTrigger(stored: StoredTrigger): AppTrigger {
   const { drops: _drops, ...trigger } = stored;
   return structuredClone(trigger);
+}
+
+function hookRunPrompt(trigger: AppTrigger, prompt: string): string {
+  return trigger.morde ? `${prompt}\n\n${mordeHookBlock(trigger.morde, trigger.name)}` : prompt;
 }
 
 export class AppTriggerManager {
@@ -270,6 +285,7 @@ export class AppTriggerManager {
     const account = await this.resolveAccount(app, input.account);
     const filter = cleanFilter(input.filter);
     const config = triggerConfig(type, input.config ?? {}, filter);
+    const morde = cleanMordeHook(input.morde);
     const duplicate = this.triggers.find((trigger) => trigger.enabled && trigger.botId === input.botId && trigger.event === type.slug &&
       trigger.accountId === account.id && trigger.prompt === prompt && JSON.stringify(trigger.config) === JSON.stringify(config));
     if (duplicate) throw new AppTriggerError(`The same automation already exists (${duplicate.id}). Use trigger_info to review it, then change that one instead.`, 409);
@@ -278,6 +294,7 @@ export class AppTriggerManager {
       id: input.id ?? randomUUID(), name, prompt, botId: input.botId, runOn: input.runOn ?? "maus", enabled: input.enabled ?? true,
       app, appName: appLabel(app), event: type.slug, eventName: type.name || type.slug, delivery: type.type === "poll" ? "poll" : "instant",
       accountId: account.id, ...(account.alias ? { accountLabel: account.alias } : {}), config, ...(filter ? { filter } : {}),
+      ...(morde ? { morde } : {}),
       remote: { state: "pending" }, ...(input.sourceThreadId ? { sourceThreadId: input.sourceThreadId } : {}),
       received: 0, filtered: 0, createdAt: now, updatedAt: now,
     };
@@ -306,7 +323,7 @@ export class AppTriggerManager {
       return (await this.update(record.id, { name: record.name, prompt: record.prompt, runOn: record.runOn, filter: record.filter ?? null, config }))!;
     }
     return this.create({ id: record.id, botId: record.botId, name: record.name, prompt: record.prompt, app: record.app, event: record.event, account: record.accountId,
-      ...(record.filter ? { filter: record.filter } : {}), config, runOn: record.runOn, enabled: false, ...(record.sourceThreadId ? { sourceThreadId: record.sourceThreadId } : {}) });
+      ...(record.filter ? { filter: record.filter } : {}), config, runOn: record.runOn, enabled: false, ...(record.morde ? { morde: record.morde } : {}), ...(record.sourceThreadId ? { sourceThreadId: record.sourceThreadId } : {}) });
   }
 
   async update(id: string, patch: AppTriggerPatch): Promise<AppTrigger | null> {
@@ -337,6 +354,12 @@ export class AppTriggerManager {
         config,
         updatedAt: this.now(),
       });
+      if (patch.morde === null) delete trigger.morde;
+      else if (patch.morde !== undefined) {
+        const morde = cleanMordeHook(patch.morde);
+        if (morde) trigger.morde = morde;
+        else delete trigger.morde;
+      }
       if (filter) trigger.filter = filter;
       else delete trigger.filter;
       if (patch.enabled === false) this.options.runs.cancelQueued(trigger.id, "The automation was paused before this event's run started");
@@ -415,7 +438,8 @@ export class AppTriggerManager {
     const eventId = `test_${randomUUID()}`;
     const run = this.options.runs.enqueue({
       webhookId: trigger.id, webhookName: trigger.name, botId: trigger.botId, runOn: trigger.runOn, deliveryId: eventId, receivedAt: this.now(),
-      eventSource: "app", prompt: eventPrompt(trigger.prompt, eventBlock(trigger, { id: eventId, receivedAt: this.now(), test: true, data })),
+      eventSource: "app", prompt: hookRunPrompt(trigger, eventPrompt(trigger.prompt, eventBlock(trigger, { id: eventId, receivedAt: this.now(), test: true, data }))),
+      ...(trigger.morde ? { morde: trigger.morde } : {}),
     });
     return { via: "here", runId: run.id };
   }
@@ -514,8 +538,9 @@ export class AppTriggerManager {
           continue;
         }
         runId = this.options.runs.enqueue({
-          webhookId: trigger.id, webhookName: trigger.name, prompt: eventPrompt(trigger.prompt, block), botId: trigger.botId,
+          webhookId: trigger.id, webhookName: trigger.name, prompt: hookRunPrompt(trigger, eventPrompt(trigger.prompt, block)), botId: trigger.botId,
           runOn: trigger.runOn, deliveryId: event.id, receivedAt: event.receivedAt, eventSource: "app",
+          ...(trigger.morde ? { morde: trigger.morde } : {}),
         }).id;
       }
       trigger.received += 1;

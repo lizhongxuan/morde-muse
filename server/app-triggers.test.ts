@@ -80,6 +80,22 @@ describe("AppTriggerManager", () => {
     expect(instance?.trigger_config).toEqual({ query: "from:acme.com subject:(order)" });
   });
 
+  it("carries a Morde hook's four elements into the run and its prompt", async () => {
+    const triggers = manager();
+    const morde = { verify: "Check the SKU, price and quantity against the last quote", approver: "采购负责人", decisionLog: "decisions.md" };
+    const trigger = await triggers.create({ botId: "bot-1", name: "供应商新报价单", prompt: "收到供应商的新报价单后，先核对，再把结果发给采购负责人拍板。", app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE", filter: { subject: "报价单" }, morde });
+    expect(triggers.get(trigger.id)).toMatchObject({ morde });
+    await broker.deliver(trigger.remote.triggerId!, { subject: "报价单 #1042", sender: "supplier@acme.com" }, "msg_quote");
+    await drain(triggers);
+    const runs = runsOf(trigger.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ morde });
+    expect(runs[0]!.prompt).toContain("[MORDE HOOK]");
+    expect(runs[0]!.prompt).toContain("验证：Check the SKU, price and quantity against the last quote");
+    expect(runs[0]!.prompt).toContain("批准人：采购负责人");
+    expect(runs[0]!.prompt).toContain("决定记在：decisions.md");
+  });
+
   it("acks an event only after its run is saved: a failure before the save brings the same event back once", async () => {
     const triggers = manager();
     const trigger = await gmailTrigger(triggers);

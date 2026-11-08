@@ -6,6 +6,7 @@
  * through the routines calendar.
  */
 import type { RoutineRunTrigger } from "./routines.ts";
+import type { MordeHook } from "./app-triggers.ts";
 
 export interface RoutineRunCardData {
   runId: string;
@@ -21,6 +22,8 @@ export interface RoutineRunCardData {
   executionThreadId?: string;
   summary?: string;
   error?: string;
+  /** Morde hook four elements, when this run started from one. */
+  morde?: MordeHook;
 }
 
 /** A bot line one automation run wrote into the chat it reports to: the run's
