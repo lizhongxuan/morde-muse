@@ -181,6 +181,16 @@ describe("importing a whole team", () => {
     expect(app.sections.readSectionContext("Sales desk")).toBeNull();
   });
 
+  it("refuses a package whose text holds a key or password, creating nothing", async () => {
+    const app = await installation();
+    const before = app.snapshot();
+    const document = app.parsePackageDocument(fixture("secret-in-soul.v2.json"));
+    expect(() => app.importer.importPackageDocument(document, { trust: "file", mode: "add" }, app.deps))
+      .toThrow(/key or password in agents\[.+\]\.soul/);
+    expect(app.snapshot()).toBe(before);
+    expect(app.events).toEqual([]);
+  });
+
   it("refuses a library-only package with a pointer to the shelf, creating nothing", async () => {
     const app = await installation();
     const before = app.snapshot();

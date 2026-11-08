@@ -27,7 +27,7 @@
 - [x] **T06 — 场景包格式**：把 Morde 的 `scene.yaml + playbook.md + rules.md + memory/ + hooks/`
   映射到 OpenMausBot 的 team file（一份 Markdown + YAML frontmatter），写映射文档。
   验收：一个场景包能导入，Bot、频道、playbook、连接清单都建出来了。
-- [ ] **T07 — 导入默认全关**：导入时连接默认关、routine 暂停、技能关、密钥与电脑选择不携带，
+- [x] **T07 — 导入默认全关**：导入时连接默认关、routine 暂停、技能关、密钥与电脑选择不携带，
   导入前有复核屏，显示文件里有什么。
   验收：导入一个含密钥字样的 team file，密钥没被带进来；复核屏列出的内容与文件一致。
 - [ ] **T08 — 钩子四要素**：钩子加上“何时触发 / 验证什么 / 谁批准 / 决定记在哪”，

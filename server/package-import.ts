@@ -15,7 +15,7 @@ import type { BotRecord, GroupRecord, InstalledPackageMetadata, Store } from "./
 import { importedMemberProfile, type ParsedTeamManifest, type TeamManifestMember } from "./team-manifest.ts";
 import { BOT_LIMIT_CODE } from "../shared/bot-limit.ts";
 import { takeImportName } from "../shared/import-name.ts";
-import { decodeBase64, type PackageAgent, type PackageDocument, type PackageTrust } from "../shared/package-format.ts";
+import { decodeBase64, packageSecretFindings, type PackageAgent, type PackageDocument, type PackageTrust } from "../shared/package-format.ts";
 import type { BotVisibility, ModelSelection } from "../shared/wire.ts";
 
 export const NO_BOTS_MESSAGE = "This package has no bots. Add it from your organization's shelf, or update OpenMausBot.";
@@ -159,6 +159,15 @@ export function importPackageDocument(
   options: PackageImportOptions,
   deps: PackageImportDeps,
 ): ImportResult {
+  // Untrusted file: export redacts secrets, but import must not carry one in.
+  // Refuse whole, naming only the part paths, never the values.
+  const secretParts = packageSecretFindings(document);
+  if (secretParts.length) {
+    throw new PackageImportError(
+      "invalid_package",
+      `This package contains a key or password in ${secretParts.join(", ")}. Remove it from the file and import it again.`,
+    );
+  }
   const pkg = document.package;
   const library = !pkg.agents.length || !pkg.team;
   if (library && options.trust !== "org" && !deps.presets) throw new PackageImportError("no_bots", NO_BOTS_MESSAGE);
