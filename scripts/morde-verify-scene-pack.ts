@@ -11,7 +11,13 @@ if (!path) {
   console.error("usage: morde-verify-scene-pack.ts <scene-pack.md>");
   process.exit(2);
 }
-const text = readFileSync(path, "utf8");
+let text: string;
+try {
+  text = readFileSync(path, "utf8");
+} catch (error) {
+  console.error(`cannot read file: ${path} (${error instanceof Error ? error.message : String(error)})`);
+  process.exit(1);
+}
 let document;
 try {
   document = parsePackageDocument(text, { trust: "file" });

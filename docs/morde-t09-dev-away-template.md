@@ -64,7 +64,7 @@ node --experimental-strip-types scripts/morde-verify-triage-output.ts <输出目
 
 - 分流卡：`/tmp/morde-triage-run/output/triage-card.md`
 - diff：`/tmp/morde-triage-run/output/fix.patch`（只改
-  `scripts/morde-verify-scene-pack.ts`，+6/−1 行）
+  `scripts/morde-verify-scene-pack.ts`，+7/−1 行）
 - 测试证据：`/tmp/morde-triage-run/output/test-evidence.md`（另有
   `before-fix.log` / `after-fix-*.log` 原始日志）
 - patch 校验用的干净目标树：`/tmp/patch-check`（仅含 HEAD 原版的
@@ -95,12 +95,14 @@ approval: missing — 未审批，不可合并
 `approval.md` 写 `decision: approve` 时退出 0（可合并），写 `decision:
 block` 时退出 2，损坏的 patch 退出 1。
 
-## 为什么没合并
+## 已合并
 
-分流卡上没有审批记录（approver / decision / time 均为空，待用户填）。
-按 T09 合门规则，这个 diff 只留在 `/tmp/morde-triage-run/output/fix.patch`
-里，没有合进 main，也没有放进本次 T09 提交。用户审批通过后，再由用户
-（或用户指定的人）决定是否应用。
+2026-11-09 用户在聊天里点了「合并这个修复」，批准合并。/tmp 的工作区
+与原 patch 文件已随云电脑 /tmp 清理丢失，本次按分流卡与测试证据里的
+原文重建了同一修复（行为一致：读不到文件时打印 `cannot read file:
+<path> (<reason>)` 并退出 1，不抛堆栈；有效场景包仍退出 0），重跑
+三项验收全部通过后随本次提交合进 main。原 /tmp 验收记录（分流卡、
+测试证据、日志）已不可恢复，以本次重建后的验收为准。
 
 ## 诚实说明
 
