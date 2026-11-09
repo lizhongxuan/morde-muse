@@ -12,8 +12,8 @@
   验收：`git log -1` 为 717343f；`package.json` version 为 0.1.149；两个文件在仓库里。
 - [x] **T02 — 模型通路**：用户选了 DeepSeek 密钥（2026-11-09）。服务器上装了 dsh 0.2.2-rc.1，key 进 config.json（deepseek.key）与 ~/.dsh/.env；主力模型 deepseek-v4-flash（dsh 默认），复杂任务用 deepseek-v4-pro；测试 Bot「DeepSeek测试」已用真实模型回话。
   验收：服务器上一个 Bot 用真实模型回了一句非模板的话；`openmausbot engine list` 显示该引擎 available。
-- [x] **T03 — 对外入口**：用户选了 Tailscale（2026-11-09）。服务器已入 tailnet（100.97.162.110，MagicDNS izwz92wfo1uo0qwrn04v45z.tail4f0878.ts.net）。`serve --tailscale`（443）被服务器上 Morde cloudhost 的 Caddy（cloudhost-caddy-1，host 网络占 443）挡住，改走手动 `tailscale serve --bg --https=8443 → 127.0.0.1:8799`；serve 本身跑 `--local`。证书曾因阿里内网 DNS 解析不了 Let's Encrypt 失败，补了 AliDNS（223.5.5.5/223.6.6.6）到 systemd-resolved 才拿到证。
-  验收：tailnet 内 `https://…ts.net:8443/` 返回 200；外网扫公网 IP 8799/8800/443 与 tailnet 地址均不通。手机端打开配对页待 T05 验证。
+- [x] **T03 — 对外入口**：用户先选 Tailscale（2026-11-09），后改口要直接 IP（同日 14:26）。Tailscale 路已打通并验证过：服务器入 tailnet（100.97.162.110，MagicDNS izwz92wfo1uo0qwrn04v45z.tail4f0878.ts.net），`serve --tailscale`（443）被服务器上 Morde cloudhost 的 Caddy（cloudhost-caddy-1，host 网络占 443）挡住，改走手动 `tailscale serve --bg --https=8443 → 127.0.0.1:8799`，tailnet 内返回 200；证书曾因阿里内网 DNS 解析不了 Let's Encrypt 失败，补了 AliDNS（223.5.5.5/223.6.6.6）到 systemd-resolved 才拿到证。后按用户要求改走直接 IP：撤掉 8443 转发，serve 改 `--lan`（8799 绑 0.0.0.0，8800 仍只绑 127.0.0.1）。**待用户在阿里云控制台安全组放行 TCP 8799**——外网 curl 公网 IP 8799 仍超时，说明安全组未放行。注意：放行后 8799 对全网开放，任何人扫到 IP 都能连上 MausBot 服务。
+  验收：手机浏览器能打开配对页；`curl` 外网扫 8799/8800 不通（直连 IP 方案下改为 8799 能通、8800 不通）。手机端打开配对页待 T05 验证。
 - [ ] **T04 — systemd 常驻**：写 systemd unit，重启后服务自动起来，数据目录 `~/.openmausbot` 单独备份。
   验收：`systemctl restart` 后服务恢复；重启后 Bot 与历史仍在。
 - [ ] **T05 — 手机配对**：用户在 iOS 上装 MausBot，扫码配对，手机上能发消息、看进度、点审批。
