@@ -10,8 +10,7 @@
 
 - [x] **T01 — Fork 基线**：clone 上游，记录 HEAD / 版本 / 结构，写 `MORDE-MUSE.md` 与本清单。
   验收：`git log -1` 为 717343f；`package.json` version 为 0.1.149；两个文件在仓库里。
-- [ ] **T02 — 模型通路**：用户选 DeepSeek 密钥 / 代理 / 换海外服务器后，
-  在服务器上配通一个模型引擎，Bot 能回第一句话。
+- [x] **T02 — 模型通路**：用户选了 DeepSeek 密钥（2026-11-09）。服务器上装了 dsh 0.2.2-rc.1，key 进 config.json（deepseek.key）与 ~/.dsh/.env；主力模型 deepseek-v4-flash（dsh 默认），复杂任务用 deepseek-v4-pro；测试 Bot「DeepSeek测试」已用真实模型回话。
   验收：服务器上一个 Bot 用真实模型回了一句非模板的话；`openmausbot engine list` 显示该引擎 available。
 - [ ] **T03 — 对外入口**：配通手机能连上的入口（三选一：`serve --tunnel` / 自有域名 + Caddy / Tailscale），
   8799 与 8800 永不对外暴露。
