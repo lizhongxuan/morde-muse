@@ -34,6 +34,11 @@
   触发后在对话里跳出 agent 卡，可批准、可搁置、可降级。
   验收：写一个“供应商发来新报价单”钩子，触发后卡片出现，点批准后决定写回场景记忆。
 
+## 工程基建
+
+- [x] **T13 — Git 钩子**：commit-msg 校验 `Txx: ` 格式（放行 Merge/Revert）；pre-commit 扫描暂存区密钥并对暂存 JS/TS 跑 oxlint（无依赖时警告放行）；pre-push 拦住往上游 milind-soni/OpenMausBot 的 push。
+  验收：三道钩子都在 `scripts/git-hooks/`、可执行、临时仓库验证通过、往上游的 push 被拦住。
+
 ## M2 — 两个模板（2–4 周）
 
 - [ ] **T09 — 离岗开发模板**：故障 + PR 分流 agent，输出永远是可验证的 diff + 测试证据，

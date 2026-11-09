@@ -10,6 +10,22 @@ if [ -n "$OMB_SKIP_HOOKS" ]; then
   exit 0
 fi
 cd "$(git rev-parse --show-toplevel)" || exit 0
+# Morde guard: never push to the upstream OpenMausBot repository; the fork
+# remote still points at upstream until the lizhongxuan/morde-muse remote exists.
+# The remote URL comes from $2 (git passes remote name in $1, URL in $2).
+# This guard reads no stdin: scripts/pre-push-check.mjs reads the pushed refs
+# from stdin itself (readFileSync(0)), and draining it here would break it.
+remote_url="$2"
+if [ -z "$remote_url" ]; then
+  remote_url=$(git config --get "remote.$1.url" 2>/dev/null || true)
+fi
+case "$remote_url" in
+  *milind-soni/OpenMausBot*)
+    echo "pre-push: blocked: '$remote_url' is the upstream OpenMausBot repository" >&2
+    echo "pre-push: this fork must not push there; push to lizhongxuan/morde-muse once that remote exists" >&2
+    exit 1
+    ;;
+esac
 if [ ! -x node_modules/.bin/oxlint ] || [ ! -f scripts/pre-push-check.mjs ] || ! command -v node >/dev/null 2>&1; then
   echo "pre-push: no dependencies in this checkout, so CI will check this push"
   exit 0

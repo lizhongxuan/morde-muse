@@ -1,0 +1,31 @@
+#!/bin/sh
+# Block secrets in staged files; lint staged JS/TS when the toolchain exists.
+# A checkout without dependencies never blocks: it warns and lets the commit through, CI checks it.
+# The secret patterns below are written so they do not match their own literals in this file.
+# Skip once with `git commit --no-verify`, or for a session with OMB_SKIP_HOOKS=1.
+if [ -n "$OMB_SKIP_HOOKS" ]; then
+  echo "pre-commit: skipped (OMB_SKIP_HOOKS is set)"
+  exit 0
+fi
+cd "$(git rev-parse --show-toplevel)" || exit 0
+if [ -z "$(git diff --cached --name-only --diff-filter=ACM)" ]; then
+  exit 0
+fi
+# Secret scan on what is actually staged (the index blobs, not the worktree).
+# Only file and line are reported, never the matched value.
+pattern='sk-proj-[A-Za-z0-9]|sk-ant-[A-Za-z0-9]|AKIA[0-9A-Z]{16}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|password[[:space:]]*=|api[_-]?key[[:space:]]*[:=]|ghp_[A-Za-z0-9]|xox[baprs]-'
+hits=$(git diff --cached --name-only --diff-filter=ACM -z | xargs -0 git grep --cached -I -n -E "$pattern" -- 2>/dev/null | sed -E 's/^([^:]+:[0-9]+):.*$/\1/')
+if [ -n "$hits" ]; then
+  echo "pre-commit: rejected: possible secret in staged files (file:line only, value not shown):" >&2
+  printf '%s\n' "$hits" >&2
+  echo "pre-commit: remove the secret from the commit (use a vault / env var instead)" >&2
+  exit 1
+fi
+js_ts=$(git diff --cached --name-only --diff-filter=ACM -z | tr '\0' '\n' | grep -E '\.[cm]?[jt]sx?$' || true)
+if [ -n "$js_ts" ]; then
+  if [ -x node_modules/.bin/oxlint ]; then
+    printf '%s\n' "$js_ts" | xargs node_modules/.bin/oxlint --deny-warnings || exit 1
+  else
+    echo "pre-commit: no dependencies in this checkout, skipping oxlint (CI will check)" >&2
+  fi
+fi
