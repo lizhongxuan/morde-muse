@@ -1,7 +1,7 @@
 ---
 botmrr: 1
 id: dev-away-from-desk
-release: 1.0.0
+release: 1.1.0
 name: Dev Away From Desk
 tagline: Fault and PR triage while you are away from your desk.
 summary: An incident and pull-request triage scene for a solo developer who has left the computer. The triage bot watches for failures and new PRs, collects verifiable evidence, and hands the reviewer a diff with test evidence. Nothing merges without a human approval.
@@ -13,6 +13,7 @@ outcomes:
   - Every incident arrives with a quoted log line and a reproduction step.
   - Every PR arrives with a diff summary and test evidence.
   - Nothing merges without a human approval.
+  - No file merges without an approval record naming the approver, the decision, and the time.
 setupMinutes: 10
 requirements:
   apps:
@@ -33,6 +34,7 @@ agents:
       - pr-triage
     skills:
       - incident-evidence
+      - diff-evidence
   - key: reviewer
     name: Desk Reviewer
     title: Reviewer
@@ -77,14 +79,14 @@ playbooks:
       - failed check
       - incident
       - deploy failure
-    instructions: Quote the failing log line verbatim with its source link. State what changed last, what the failure affects, and the smallest next step. Never claim a fix you have not run. If the evidence is missing, say what is missing and stop.
+    instructions: Quote the failing log line verbatim with its source link. State what changed last, what the failure affects, and the smallest next step. Never claim a fix you have not run. If the evidence is missing, say what is missing and stop. Output contract — every triage card must ship with (a) an applicable diff as a .patch file that passes `git apply --check`, and (b) test evidence — the test command, its exit code, and the key output quoted verbatim. A card without both is invalid — the reviewer must send it back.
   - key: pr-triage
     name: PR Triage
     summary: Turn a pull request into a review card with diff and test evidence.
     triggers:
       - new pull request
       - review requested
-    instructions: Summarize the diff in five lines or fewer. List the tests that ran and their result, with links. Name the riskiest change and why. End with approve or block, and the reason. Blocking needs a concrete failing check or a named risk, not a feeling.
+    instructions: Summarize the diff in five lines or fewer. List the tests that ran and their result, with links. Name the riskiest change and why. End with approve or block, and the reason. Blocking needs a concrete failing check or a named risk, not a feeling. Output contract — every triage card must ship with (a) an applicable diff as a .patch file that passes `git apply --check`, and (b) test evidence — the test command, its exit code, and the key output quoted verbatim. A card without both is invalid — the reviewer must send it back. Merge gate — no file merges without an approval record naming the approver, the decision, and the time. An unapproved diff stays out of the main branch, however small the fix.
 skills:
   version: 1
   entries:
@@ -103,6 +105,21 @@ skills:
         2. Name the check, job or deploy that failed.
         3. State what changed last.
         4. Write the conclusion only after steps 1-3 are done.
+    - name: diff-evidence
+      description: Produce an applicable diff and quoted test evidence for a triage card.
+      source: package:dev-away-from-desk
+      instructions: |
+        ---
+        name: diff-evidence
+        description: Produce an applicable diff and quoted test evidence for a triage card.
+        ---
+
+        # Diff evidence
+
+        1. Produce the diff with `git diff` into a `.patch` file; confirm it with `git apply --check` against a clean copy of the target.
+        2. Run the tests the change touches, plus the smallest related check; record the exact command, the exit code, and the key output lines verbatim.
+        3. Quote failing lines verbatim before the fix and passing lines after it; never rewrite output from memory.
+        4. Write the triage card only after steps 1-3 are done; a card without a patch and test evidence is invalid.
 ---
 
 # Dev Away From Desk
@@ -121,11 +138,14 @@ Never request pasted passwords or secret keys. Use the platform's normal connect
 
 An incident and pull-request triage scene for a solo developer who has left the computer. The triage bot watches for failures and new PRs, collects verifiable evidence, and hands the reviewer a diff with test evidence. Nothing merges without a human approval.
 
+Merge gate — no file merges without an approval record naming the approver, the decision, and the time. The deploy-watch routine stays paused until the user enables it.
+
 ## Outcomes
 
 - Every incident arrives with a quoted log line and a reproduction step.
 - Every PR arrives with a diff summary and test evidence.
 - Nothing merges without a human approval.
+- No file merges without an approval record naming the approver, the decision, and the time.
 
 ## Connections
 
@@ -189,7 +209,7 @@ Check the default branch for failed checks and new pull requests since the last 
 
 Turn a failure into a triage card with quoted evidence.
 
-Quote the failing log line verbatim with its source link. State what changed last, what the failure affects, and the smallest next step. Never claim a fix you have not run. If the evidence is missing, say what is missing and stop.
+Quote the failing log line verbatim with its source link. State what changed last, what the failure affects, and the smallest next step. Never claim a fix you have not run. If the evidence is missing, say what is missing and stop. Output contract — every triage card must ship with (a) an applicable diff as a .patch file that passes `git apply --check`, and (b) test evidence — the test command, its exit code, and the key output quoted verbatim. A card without both is invalid — the reviewer must send it back.
 
 ### PR Triage
 
@@ -199,7 +219,7 @@ Quote the failing log line verbatim with its source link. State what changed las
 
 Turn a pull request into a review card with diff and test evidence.
 
-Summarize the diff in five lines or fewer. List the tests that ran and their result, with links. Name the riskiest change and why. End with approve or block, and the reason. Blocking needs a concrete failing check or a named risk, not a feeling.
+Summarize the diff in five lines or fewer. List the tests that ran and their result, with links. Name the riskiest change and why. End with approve or block, and the reason. Blocking needs a concrete failing check or a named risk, not a feeling. Output contract — every triage card must ship with (a) an applicable diff as a .patch file that passes `git apply --check`, and (b) test evidence — the test command, its exit code, and the key output quoted verbatim. A card without both is invalid — the reviewer must send it back. Merge gate — no file merges without an approval record naming the approver, the decision, and the time. An unapproved diff stays out of the main branch, however small the fix.
 
 ## Completion rule
 

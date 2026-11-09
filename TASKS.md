@@ -40,8 +40,9 @@
 
 ## M2 — 两个模板（2–4 周）
 
-- [ ] **T09 — 离岗开发模板**：故障 + PR 分流 agent，输出永远是可验证的 diff + 测试证据，
+- [x] **T09 — 离岗开发模板**：故障 + PR 分流 agent，输出永远是可验证的 diff + 测试证据，
   审批通过前不合并。
+  完成 2026-11-09：场景包升到 1.1.0，`incident-triage` / `pr-triage` 加了硬性输出契约（.patch + `git apply --check`、测试证据含命令/退出码/原文，无则分流卡无效），Mission 与 pr-triage 加了合门（无 approver + 决定 + 时间的审批记录一律不合并），新技能 `diff-evidence`；新脚本 `scripts/morde-verify-triage-output.ts`（退出码 0 可合并 / 1 输出无效 / 2 未审批）。验收：在本仓 HEAD 30830b29a 的 /tmp worktree 里实跑一次，故障是 `morde-verify-scene-pack.ts` 对不存在的文件抛未捕获堆栈（真实复现），修后报错干净，三项断言 `ALL CHECKS PASSED`（退出 0）；diff 与证据只留在 `/tmp/morde-triage-run/output/`，校验脚本判“未审批，不可合并”（退出 2），未合进 main。详见 `docs/morde-t09-dev-away-template.md`。
   验收：在一个真实仓库上跑一次，输出 diff 与测试证据，审批后才合并。
 - [ ] **T10 — 带货模板**：一档直播一个文件（商品卡、分镜脚本、合规 flag、每 SKU 复盘自动附上）。
   验收：给一个商品，产出一份完整直播文件，合规 flag 能标出绝对化用语。
